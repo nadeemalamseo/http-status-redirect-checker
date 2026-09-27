@@ -7,10 +7,11 @@ A practical HTTP status and redirect checker for identifying redirect chains, lo
 This Python command-line utility inspects the HTTP behavior of supplied URLs without automatically following redirects. It records each observed hop so you can review:
 
 - HTTP status codes
-- redirect chains
+- redirect chains (multiple redirect hops)
 - redirect loops
 - missing or invalid `Location` headers
 - final destination URLs
+- optional expected-destination comparison
 - 2xx, 3xx, 4xx, and 5xx classifications
 - response content types
 - request errors and redirect limits
@@ -58,6 +59,12 @@ Set a timeout or redirect limit:
 
 ```bash
 python http_status_redirect_checker.py https://example.com/old-page --timeout 15 --max-redirects 5
+```
+
+Compare the observed final destination with an expected URL:
+
+```bash
+python http_status_redirect_checker.py https://example.com/old-page --expected-destination https://example.com/new-page
 ```
 
 ## Exit codes
