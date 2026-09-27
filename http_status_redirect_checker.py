@@ -37,6 +37,8 @@ class CheckResult:
     chain: list[Hop] = field(default_factory=list)
     findings: list[str] = field(default_factory=list)
     error: Optional[str] = None
+    expected_destination: Optional[str] = None
+    destination_matches: Optional[bool] = None
 
 
 def validate_url(url: str) -> str:
@@ -44,6 +46,11 @@ def validate_url(url: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("URL must use http:// or https:// and include a host")
     return url
+
+
+def normalize_url(url: str) -> str:
+    parsed = urlparse(validate_url(url))
+    return parsed._replace(fragment="").geturl()
 
 
 def classify_status(status: Optional[int]) -> str:
@@ -66,14 +73,17 @@ def check_url(
     timeout: float = DEFAULT_TIMEOUT,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
     user_agent: str = DEFAULT_USER_AGENT,
+    expected_destination: Optional[str] = None,
     session: Optional[requests.Session] = None,
 ) -> CheckResult:
     current = validate_url(url)
+    expected = normalize_url(expected_destination) if expected_destination else None
     result = CheckResult(
         input_url=url,
         final_url=None,
         final_status=None,
         redirect_count=0,
+        expected_destination=expected,
     )
     visited: set[str] = set()
     client = session or requests.Session()
@@ -83,7 +93,7 @@ def check_url(
             result.findings.append("redirect-loop")
             result.error = "Redirect loop detected."
             result.final_url = current
-            return result
+            break
         visited.add(current)
 
         try:
@@ -97,7 +107,7 @@ def check_url(
             result.error = f"Request failed: {exc}"
             result.final_url = current
             result.chain.append(Hop(url=current, status=None, error=str(exc)))
-            return result
+            break
 
         content_type = response.headers.get("Content-Type")
         location = response.headers.get("Location")
@@ -118,14 +128,14 @@ def check_url(
                 result.findings.append("client-error")
             elif category == "server-error":
                 result.findings.append("server-error")
-            return result
+            break
 
         if not location:
             result.final_url = current
             result.final_status = response.status_code
             result.findings.append("redirect-missing-location")
             result.error = "Redirect response has no Location header."
-            return result
+            break
 
         target = urljoin(current, location)
         parsed = urlparse(target)
@@ -134,14 +144,23 @@ def check_url(
             result.final_status = response.status_code
             result.findings.append("redirect-invalid-location")
             result.error = "Redirect Location does not resolve to a valid HTTP(S) URL."
-            return result
+            break
 
         result.redirect_count += 1
         current = target
+    else:
+        result.final_url = current
+        result.findings.append("redirect-limit-exceeded")
+        result.error = f"Redirect limit of {max_redirects} exceeded."
 
-    result.final_url = current
-    result.findings.append("redirect-limit-exceeded")
-    result.error = f"Redirect limit of {max_redirects} exceeded."
+    if result.redirect_count > 1 and "redirect-loop" not in result.findings:
+        result.findings.append("redirect-chain")
+
+    if expected and result.final_url:
+        result.destination_matches = normalize_url(result.final_url) == expected
+        if not result.destination_matches:
+            result.findings.append("destination-mismatch")
+
     return result
 
 
@@ -163,6 +182,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--user-agent", default=DEFAULT_USER_AGENT, help="HTTP User-Agent header"
     )
+    parser.add_argument(
+        "--expected-destination",
+        help="Expected final HTTP(S) URL for destination comparison",
+    )
     return parser.parse_args()
 
 
@@ -174,6 +197,12 @@ def main() -> int:
     if args.max_redirects < 0:
         print("Error: --max-redirects cannot be negative.", file=sys.stderr)
         return 2
+    if args.expected_destination:
+        try:
+            validate_url(args.expected_destination)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
 
     results: list[CheckResult] = []
     for url in args.urls:
@@ -184,6 +213,7 @@ def main() -> int:
                     timeout=args.timeout,
                     max_redirects=args.max_redirects,
                     user_agent=args.user_agent,
+                    expected_destination=args.expected_destination,
                 )
             )
         except ValueError as exc:
@@ -207,6 +237,9 @@ def main() -> int:
             print(f"Final status: {item.final_status or '-'}")
             print(f"Redirects: {item.redirect_count}")
             print(f"Classification: {classify_status(item.final_status)}")
+            if item.expected_destination:
+                print(f"Expected destination: {item.expected_destination}")
+                print(f"Destination matches: {item.destination_matches}")
             if item.findings:
                 print("Findings: " + ", ".join(item.findings))
             if item.error:
@@ -218,7 +251,13 @@ def main() -> int:
                 print(f"  {status} {hop.url}{location}")
             print()
 
-    return 2 if any(item.error or "client-error" in item.findings or "server-error" in item.findings for item in results) else 1 if any(item.findings for item in results) else 0
+    return 2 if any(
+        item.error
+        or "client-error" in item.findings
+        or "server-error" in item.findings
+        or "destination-mismatch" in item.findings
+        for item in results
+    ) else 1 if any(item.findings for item in results) else 0
 
 
 if __name__ == "__main__":
