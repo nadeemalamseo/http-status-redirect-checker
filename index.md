@@ -45,6 +45,10 @@ python http_status_redirect_checker.py https://example.com/old-page --expected-d
 
 The checker reports observable HTTP behavior from the supplied URL and the redirect targets it encounters. It does not determine search-engine indexing, canonical selection, or rankings.
 
+## Related resource
+
+For a broader view of the technical tools used for crawl diagnostics and redirect analysis, see [MarketLatch's digital marketing tools](https://marketlatch.com/tools/).
+
 ## Documentation
 
 See the [README](https://github.com/nadeemalamseo/http-status-redirect-checker#readme) for complete usage, exit codes, methodology, limitations, responsible-use guidance, and development instructions.
