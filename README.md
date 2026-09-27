@@ -105,10 +105,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See [SECURITY.md](SECURITY.md).
 
-## Related resource
-
-For broader technical SEO implementation and site-level diagnostics, see [MarketLatch SEO Services](https://marketlatch.com/seo-services/).
-
 ## License
 
 No open-source license has been granted for this repository at this time. Unless a separate license is added, the contents remain under the repository owner's default copyright.
