@@ -47,6 +47,18 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(result.final_url, "https://example.com/new")
         self.assertEqual(result.redirect_count, 1)
 
+    def test_redirect_chain_is_reported(self):
+        session = FakeSession(
+            [
+                response(301, "https://example.com/a", {"Location": "/b"}),
+                response(302, "https://example.com/b", {"Location": "/c"}),
+                response(200, "https://example.com/c"),
+            ]
+        )
+        result = check_url("https://example.com/a", session=session)
+        self.assertIn("redirect-chain", result.findings)
+        self.assertEqual(result.redirect_count, 2)
+
     def test_relative_location_is_resolved(self):
         session = FakeSession(
             [
@@ -90,6 +102,31 @@ class CheckerTests(unittest.TestCase):
         result = check_url("https://example.com/", session=session)
         self.assertEqual(result.final_status, None)
         self.assertIn("Request failed", result.error)
+
+    def test_expected_destination_matches(self):
+        session = FakeSession(
+            [
+                response(301, "https://example.com/old", {"Location": "/new"}),
+                response(200, "https://example.com/new"),
+            ]
+        )
+        result = check_url(
+            "https://example.com/old",
+            expected_destination="https://example.com/new#fragment",
+            session=session,
+        )
+        self.assertTrue(result.destination_matches)
+        self.assertNotIn("destination-mismatch", result.findings)
+
+    def test_expected_destination_mismatch(self):
+        session = FakeSession([response(200, "https://example.com/current")])
+        result = check_url(
+            "https://example.com/current",
+            expected_destination="https://example.com/other",
+            session=session,
+        )
+        self.assertFalse(result.destination_matches)
+        self.assertIn("destination-mismatch", result.findings)
 
     def test_invalid_url(self):
         with self.assertRaises(ValueError):
