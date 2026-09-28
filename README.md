@@ -105,6 +105,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See [SECURITY.md](SECURITY.md).
 
+## Project links
+
+- [Project landing page](https://nadeemalamseo.github.io/http-status-redirect-checker/)
+- [v0.1.0 release](https://github.com/nadeemalamseo/http-status-redirect-checker/releases/tag/v0.1.0)
+- [Download v0.1.0 ZIP](https://github.com/nadeemalamseo/http-status-redirect-checker/archive/refs/tags/v0.1.0.zip)
+
 ## License
 
 This repository is licensed under the MIT License. See [LICENSE](LICENSE).
